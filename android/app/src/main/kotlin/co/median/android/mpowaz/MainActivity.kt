@@ -1,0 +1,6 @@
+package co.median.android.mpowaz
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity: FlutterActivity() {
+}
