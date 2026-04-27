@@ -13,6 +13,10 @@ workflows:
       flutter: stable
       xcode: latest
 
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.freebrokery.app   # <-- CHANGE THIS
+
     scripts:
       - name: Get dependencies
         script: |
@@ -24,8 +28,3 @@ workflows:
 
     artifacts:
       - build/ios/ipa/*.ipa
-
-    publishing:
-      email:
-        recipients:
-          - info@freebrokery.com
