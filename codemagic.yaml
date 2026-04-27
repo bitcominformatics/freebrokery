@@ -15,7 +15,7 @@ workflows:
 
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: com.freebrokery.app   # <-- CHANGE THIS
+        bundle_identifier: co.median.ios.mpowaz   # <-- CHANGE THIS
 
     scripts:
       - name: Get dependencies
