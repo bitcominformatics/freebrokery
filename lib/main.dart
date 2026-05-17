@@ -1,16 +1,17 @@
 import 'dart:async';
 import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:file_picker/file_picker.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Show Status Bar
+  // Status Bar
   SystemChrome.setEnabledSystemUIMode(
     SystemUiMode.edgeToEdge,
   );
@@ -31,9 +32,13 @@ class FreeBrokeryApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
+      title: 'FreeBrokery',
+      theme: ThemeData(
+        useMaterial3: true,
+      ),
+      home: const SplashScreen(),
     );
   }
 }
@@ -53,9 +58,13 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
 
     Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const WebViewPage()),
+        MaterialPageRoute(
+          builder: (_) => const WebViewPage(),
+        ),
       );
     });
   }
@@ -63,7 +72,9 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+      body: Center(
+        child: CircularProgressIndicator(),
+      ),
     );
   }
 }
@@ -78,52 +89,78 @@ class WebViewPage extends StatefulWidget {
 }
 
 class _WebViewPageState extends State<WebViewPage> {
-  WebViewController? controller;
+  late final WebViewController controller;
+
   bool isLoading = true;
+  bool hasError = false;
 
   @override
   void initState() {
     super.initState();
-    _initialize();
+
+    _requestPermissions();
+    _initWebView();
   }
 
-  Future<void> _initialize() async {
-    var status = await Permission.locationWhenInUse.request();
+  /* ---------- PERMISSIONS ---------- */
 
-    if (status.isPermanentlyDenied) {
-      await openAppSettings();
+  Future<void> _requestPermissions() async {
+    try {
+      await Permission.locationWhenInUse.request();
+    } catch (e) {
+      debugPrint("Permission Error: $e");
     }
-
-    _initWebView(); // Load WebView regardless
   }
+
+  /* ---------- WEBVIEW ---------- */
 
   void _initWebView() {
-    final newController = WebViewController()
+    controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFFFFFFFF))
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (_) {
-            setState(() => isLoading = false);
+          onPageStarted: (url) {
+            setState(() {
+              isLoading = true;
+              hasError = false;
+            });
+          },
+          onPageFinished: (url) {
+            setState(() {
+              isLoading = false;
+            });
+          },
+          onWebResourceError: (error) {
+            setState(() {
+              isLoading = false;
+              hasError = true;
+            });
           },
         ),
       )
-      ..loadRequest(Uri.parse("https://freebrokery.com"));
+      ..loadRequest(
+        Uri.parse("https://freebrokery.com"),
+      );
 
-    if (newController.platform is AndroidWebViewController) {
+    /* ---------- ANDROID SETTINGS ---------- */
+
+    if (controller.platform is AndroidWebViewController) {
       final androidController =
-          newController.platform as AndroidWebViewController;
+          controller.platform as AndroidWebViewController;
 
       androidController.setMediaPlaybackRequiresUserGesture(false);
+
       androidController.setGeolocationEnabled(true);
 
-      // Grant camera, mic etc
+      // Camera / Mic Permissions
       androidController.setOnPlatformPermissionRequest(
         (request) async {
           request.grant();
         },
       );
 
-      // ✅ Fix website location permission
+      // Location Access
       androidController.setGeolocationPermissionsPromptCallbacks(
         onShowPrompt: (origin) async {
           return GeolocationPermissionsResponse(
@@ -133,51 +170,97 @@ class _WebViewPageState extends State<WebViewPage> {
         },
       );
 
-      // ✅ File Upload Support
-      androidController.setOnShowFileSelector((params) async {
-        final result = await FilePicker.platform.pickFiles();
+      // File Upload Support
+      androidController.setOnShowFileSelector(
+        (params) async {
+          final result = await FilePicker.platform.pickFiles();
 
-        if (result == null || result.files.isEmpty) {
-          return [];
-        }
+          if (result == null || result.files.isEmpty) {
+            return [];
+          }
 
-        return result.files
-            .where((file) => file.path != null)
-            .map((file) => Uri.file(file.path!).toString())
-            .toList();
-      });
+          return result.files
+              .where((file) => file.path != null)
+              .map((file) => Uri.file(file.path!).toString())
+              .toList();
+        },
+      );
     }
-
-    setState(() {
-      controller = newController;
-    });
   }
 
+  /* ---------- BACK BUTTON ---------- */
+
   Future<bool> _onWillPop() async {
-    if (controller != null && await controller!.canGoBack()) {
-      await controller!.goBack();
+    if (await controller.canGoBack()) {
+      await controller.goBack();
       return false;
     }
+
     return true;
   }
 
+  /* ---------- UI ---------- */
+
   @override
   Widget build(BuildContext context) {
-    if (controller == null) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return WillPopScope(
       onWillPop: _onWillPop,
-      child: SafeArea(
-        child: Scaffold(
-          body: Stack(
+      child: Scaffold(
+        body: SafeArea(
+          child: Stack(
             children: [
-              WebViewWidget(controller: controller!),
+              if (!hasError)
+                WebViewWidget(controller: controller),
+
+              // Loading
               if (isLoading)
-                const Center(child: CircularProgressIndicator()),
+                const Center(
+                  child: CircularProgressIndicator(),
+                ),
+
+              // Error Screen
+              if (hasError)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.wifi_off,
+                          size: 70,
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          "Unable to load website",
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          "Please check your internet connection and try again.",
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 25),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              hasError = false;
+                              isLoading = true;
+                            });
+
+                            controller.loadRequest(
+                              Uri.parse("https://freebrokery.com"),
+                            );
+                          },
+                          child: const Text("Retry"),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
