@@ -6,7 +6,7 @@
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 
 		<key>CFBundleDisplayName</key>
-		<string>Freebrokery</string>
+		<string>Free Brokery</string>
 
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
