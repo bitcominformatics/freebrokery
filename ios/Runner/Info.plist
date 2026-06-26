@@ -63,6 +63,12 @@
 		<true/>
 
 		<key>UIStatusBarHidden</key>
+        <key>NSLocationWhenInUseUsageDescription</key>
+        <string>This app needs your location to continue.</string>
+        <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+        <string>This app needs your location to continue.</string>
+        <key>NSLocationAlwaysUsageDescription</key>
+        <string>This app needs your location to continue.</string>
 		<false/>
 
 		<!-- Privacy Permissions -->
